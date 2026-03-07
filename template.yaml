@@ -1,0 +1,165 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Multimodal RAG Document Intelligence — Serverless Backend
+  Lambda + API Gateway + S3 + Textract
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 300
+    MemorySize: 1024
+    Environment:
+      Variables:
+        OPENSEARCH_HOST: !Ref OpenSearchHost
+        OPENSEARCH_PORT: !Ref OpenSearchPort
+        OPENSEARCH_USER: !Ref OpenSearchUser
+        OPENSEARCH_PASSWORD: !Ref OpenSearchPassword
+        OPENSEARCH_INDEX: !Ref OpenSearchIndex
+        GROQ_API_KEY: !Ref GroqApiKey
+        S3_BUCKET_NAME: !Ref DocumentBucket
+        AWS_REGION_NAME: !Ref AWS::Region
+
+Parameters:
+  OpenSearchHost:
+    Type: String
+    Description: OpenSearch domain endpoint
+  OpenSearchPort:
+    Type: String
+    Default: "443"
+  OpenSearchUser:
+    Type: String
+    Default: admin
+  OpenSearchPassword:
+    Type: String
+    NoEcho: true
+  OpenSearchIndex:
+    Type: String
+    Default: multimodal-rag-index
+  GroqApiKey:
+    Type: String
+    NoEcho: true
+
+Resources:
+  # ── S3 Bucket for documents ───────────────────────────────────────
+  DocumentBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "multimodal-rag-docs-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: CleanupUploads
+            Prefix: uploads/
+            Status: Enabled
+            ExpirationInDays: 7
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins: ["*"]
+            AllowedMethods: [GET, PUT, POST, DELETE]
+            AllowedHeaders: ["*"]
+            MaxAge: 3600
+
+  # ── Lambda Function ───────────────────────────────────────────────
+  RAGFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: multimodal-rag-handler
+      CodeUri: .
+      Handler: api.handler.lambda_handler
+      Description: Multimodal RAG API handler
+      Layers:
+        - !Ref DependenciesLayer
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref DocumentBucket
+        - Statement:
+            Effect: Allow
+            Action:
+              - textract:AnalyzeDocument
+              - textract:StartDocumentAnalysis
+              - textract:GetDocumentAnalysis
+            Resource: "*"
+      Events:
+        IngestApi:
+          Type: Api
+          Properties:
+            Path: /ingest
+            Method: post
+            RestApiId: !Ref RAGApi
+        QueryApi:
+          Type: Api
+          Properties:
+            Path: /query
+            Method: post
+            RestApiId: !Ref RAGApi
+        StatusApi:
+          Type: Api
+          Properties:
+            Path: /status
+            Method: get
+            RestApiId: !Ref RAGApi
+        DeleteSourceApi:
+          Type: Api
+          Properties:
+            Path: /source
+            Method: delete
+            RestApiId: !Ref RAGApi
+
+  # ── Dependencies Layer ────────────────────────────────────────────
+  DependenciesLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: rag-dependencies
+      Description: Python dependencies for RAG pipeline
+      ContentUri: layer/
+      CompatibleRuntimes:
+        - python3.11
+      RetentionPolicy: Delete
+
+  # ── API Gateway ───────────────────────────────────────────────────
+  RAGApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: multimodal-rag-api
+      StageName: prod
+      Cors:
+        AllowMethods: "'GET,POST,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowOrigin: "'*'"
+      EndpointConfiguration:
+        Type: REGIONAL
+
+  # ── IAM Role for Textract + S3 ────────────────────────────────────
+  TextractServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: TextractServiceRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: textract.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: TextractS3Access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub "arn:aws:s3:::${DocumentBucket}/*"
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${RAGApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+  BucketName:
+    Description: S3 bucket for document storage
+    Value: !Ref DocumentBucket
+  FunctionArn:
+    Description: Lambda function ARN
+    Value: !GetAtt RAGFunction.Arn

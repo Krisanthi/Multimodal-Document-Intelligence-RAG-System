@@ -45,7 +45,7 @@ class RAGPipeline:
         self._parser: Optional[DocumentParser] = None
         self._chunker: Optional[DocumentChunker] = None
         self._embedder: Optional[Embedder] = None
-        self._os_client: Optional[OpenSearchClient] = None
+        self._os_client = None
         self._retriever: Optional[Retriever] = None
         self._reranker: Optional[Reranker] = None
         self._generator: Optional[AnswerGenerator] = None

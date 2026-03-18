@@ -1,10 +1,25 @@
-"""Configuration loaded from environment variables."""
+"""Configuration loaded from environment variables.
+
+On Streamlit Cloud, secrets from the app settings are injected into
+os.environ so that the rest of the code can read them with os.getenv().
+"""
 
 import os
 from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# ── Streamlit Cloud secrets integration ───────────────────────────────
+# Streamlit stores secrets in st.secrets (not in env vars).  Inject them
+# into os.environ so every os.getenv() call picks them up automatically.
+try:
+    import streamlit as st
+    for key, value in st.secrets.items():
+        if isinstance(value, str):
+            os.environ.setdefault(key, value)
+except Exception:
+    pass  # Not running on Streamlit Cloud — .env / real env vars are used
 
 
 class Settings:

@@ -34,9 +34,9 @@ def setup_opensearch_index(recreate: bool = False) -> bool:
 
     created = client.create_index(dimension=settings.EMBEDDING_DIMENSION)
     if created:
-        logger.info("✅ Index '%s' created successfully", settings.OPENSEARCH_INDEX)
+        logger.info(" Index '%s' created successfully", settings.OPENSEARCH_INDEX)
     else:
-        logger.info("ℹ️  Index '%s' already exists", settings.OPENSEARCH_INDEX)
+        logger.info("  Index '%s' already exists", settings.OPENSEARCH_INDEX)
 
     return True
 

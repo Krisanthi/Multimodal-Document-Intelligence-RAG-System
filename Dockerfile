@@ -3,9 +3,9 @@ FROM python:3.11-slim AS base
 
 WORKDIR /app
 
-# System dependencies
+# System dependencies (including Tesseract OCR for image parsing)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc g++ curl && \
+    gcc g++ curl tesseract-ocr tesseract-ocr-eng && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies

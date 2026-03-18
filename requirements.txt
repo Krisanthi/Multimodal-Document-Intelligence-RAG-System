@@ -2,17 +2,19 @@
 python-dotenv==1.0.1
 pydantic>=2.0,<3.0
 
-# AWS
+# AWS (S3 for temporary document staging)
 boto3>=1.34.0
 botocore>=1.34.0
 
-# PDF fallback
+# PDF parsing
 pdfplumber>=0.10.0
 
-# Vector store (replaces OpenSearch for cloud deployment)
-faiss-cpu>=1.7.4
+# Image OCR (replaces AWS Textract — zero cost)
+pytesseract>=0.3.10
+Pillow>=10.0.0
 
-# OpenSearch (local development)
+# Vector store: dual-backend
+faiss-cpu>=1.7.4
 opensearch-py>=2.4.0
 requests>=2.31.0
 
@@ -29,4 +31,3 @@ streamlit>=1.30.0
 
 # Utilities
 numpy>=1.24.0
-Pillow>=10.0.0

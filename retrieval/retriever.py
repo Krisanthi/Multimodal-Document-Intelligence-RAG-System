@@ -1,5 +1,7 @@
 """
-Retriever — query embedding + hybrid search over OpenSearch.
+Retriever — query embedding + hybrid search over the vector store.
+
+Works with both OpenSearchClient and FAISSClient (duck-typed).
 """
 
 import logging
@@ -7,21 +9,20 @@ from typing import List, Dict, Any, Optional
 
 from config.settings import settings
 from ingestion.embedder import Embedder
-from indexing.opensearch_client import OpenSearchClient
 
 logger = logging.getLogger(__name__)
 
 
 class Retriever:
-    """Embeds user queries and retrieves relevant chunks from OpenSearch."""
+    """Embeds user queries and retrieves relevant chunks from the vector store."""
 
     def __init__(
         self,
         embedder: Optional[Embedder] = None,
-        os_client: Optional[OpenSearchClient] = None,
+        os_client=None,
     ):
         self.embedder = embedder or Embedder()
-        self.os_client = os_client or OpenSearchClient()
+        self.os_client = os_client  # Passed in by RAGPipeline
 
     def retrieve(
         self,

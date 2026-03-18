@@ -1,0 +1,65 @@
+{
+  "description": "Evaluation test queries for DocIntel RAG system",
+  "queries": [
+    {
+      "question": "What is Osteosense and what does it do?",
+      "relevant_sources": ["Design Chapter.pdf"],
+      "expected_keywords": ["osteosense", "image", "analyzing", "bone"],
+      "reference_answer": "Osteosense is an image analyzing system designed for bone-related medical analysis."
+    },
+    {
+      "question": "What is shown in Figure 15?",
+      "relevant_sources": ["Design Chapter.pdf"],
+      "expected_keywords": ["figure 15", "osteosense", "image"],
+      "reference_answer": "Figure 15 shows the Osteosense image analyzing interface."
+    },
+    {
+      "question": "Describe the system architecture or design approach used.",
+      "relevant_sources": ["Design Chapter.pdf"],
+      "expected_keywords": ["design", "system", "architecture"],
+      "reference_answer": "The system uses an architecture that incorporates image analysis components for medical imaging."
+    },
+    {
+      "question": "What methodologies or technologies are used in the project?",
+      "relevant_sources": ["Design Chapter.pdf"],
+      "expected_keywords": ["method", "technology", "analysis"],
+      "reference_answer": "The project employs various technologies and methodologies for image analysis and processing."
+    },
+    {
+      "question": "What are the key components or modules described?",
+      "relevant_sources": ["Design Chapter.pdf"],
+      "expected_keywords": ["component", "module", "design"],
+      "reference_answer": "The design chapter describes the key components and modules of the system."
+    },
+    {
+      "question": "What page discusses the image analyzing functionality?",
+      "relevant_sources": ["Design Chapter.pdf"],
+      "expected_keywords": ["page", "image", "analyzing"],
+      "reference_answer": "The image analyzing functionality is discussed on page 52."
+    },
+    {
+      "question": "What are the main features of the system?",
+      "relevant_sources": ["Design Chapter.pdf"],
+      "expected_keywords": ["feature", "system"],
+      "reference_answer": "The system includes features for image analysis and bone density assessment."
+    },
+    {
+      "question": "What data or inputs does the system process?",
+      "relevant_sources": ["Design Chapter.pdf"],
+      "expected_keywords": ["data", "input", "process"],
+      "reference_answer": "The system processes medical imaging data as inputs for analysis."
+    },
+    {
+      "question": "What are the design objectives mentioned?",
+      "relevant_sources": ["Design Chapter.pdf"],
+      "expected_keywords": ["objective", "design", "goal"],
+      "reference_answer": "The design objectives focus on creating an efficient system for medical image analysis."
+    },
+    {
+      "question": "Describe the user interface or interaction flow.",
+      "relevant_sources": ["Design Chapter.pdf"],
+      "expected_keywords": ["interface", "user", "flow"],
+      "reference_answer": "The system provides a user interface for interacting with the image analysis tools."
+    }
+  ]
+}

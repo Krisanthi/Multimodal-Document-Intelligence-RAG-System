@@ -4,21 +4,21 @@ Parsing pipeline:
   1. Upload file to S3 temporarily (demonstrates AWS integration)
   2. Parse locally with pdfplumber (PDFs) or pytesseract + Pillow (images)
   3. Delete file from S3 after processing
-
-This avoids AWS Textract costs while still showcasing S3 usage.
 """
 
 import io
 import logging
+import os
 from pathlib import Path
 from typing import List, Dict, Optional
 
 import boto3
+import pytesseract  # Moved to top-level import for better visibility
+from PIL import Image
 from botocore.exceptions import ClientError
 from config.settings import settings
 
 logger = logging.getLogger(__name__)
-
 
 class DocumentParser:
     """Parses documents using pdfplumber (PDFs) and pytesseract (images).
@@ -28,6 +28,11 @@ class DocumentParser:
     SUPPORTED_DOC_EXTS = {".pdf"} | SUPPORTED_IMAGE_EXTS
 
     def __init__(self):
+        # Configure Tesseract path for macOS Homebrew
+        # We check settings first, otherwise default to your known path
+        tess_path = getattr(settings, "TESSERACT_CMD", "/opt/homebrew/bin/tesseract")
+        pytesseract.pytesseract.tesseract_cmd = tess_path
+
         creds = settings.get_aws_credentials()
         try:
             self._s3 = boto3.client("s3", **creds)
@@ -40,25 +45,18 @@ class DocumentParser:
             self._s3_available = False
 
     def parse(self, file_path: str, file_bytes: Optional[bytes] = None) -> Dict:
-        """Parse a document and return structured content.
-
-        Args:
-            file_path: original filename (or path)
-            file_bytes: raw file content
-
-        Returns:
-            Dict with text_blocks, tables, key_value_pairs, metadata
-        """
+        """Parse a document and return structured content."""
         path = Path(file_path)
         ext = path.suffix.lower()
         if ext not in self.SUPPORTED_DOC_EXTS:
             raise ValueError(f"Unsupported type: {ext}")
+
         if file_bytes is None:
             file_bytes = path.read_bytes()
 
         logger.info("Parsing %s (%.1f KB)", path.name, len(file_bytes) / 1024)
 
-        # Stage 1: Temporarily store in S3 (demonstrates AWS S3 integration)
+        # Stage 1: Temporarily store in S3
         s3_key = self._upload_to_s3(path.name, file_bytes)
 
         # Stage 2: Parse locally (zero cost)
@@ -85,7 +83,6 @@ class DocumentParser:
     # ── S3 temporary storage ──────────────────────────────────────────
 
     def _upload_to_s3(self, filename: str, file_bytes: bytes) -> Optional[str]:
-        """Upload file to S3 temporarily. Returns the S3 key or None."""
         if not self._s3_available:
             return None
         s3_key = f"uploads/{filename}"
@@ -100,7 +97,6 @@ class DocumentParser:
             return None
 
     def _delete_from_s3(self, s3_key: str):
-        """Delete the temporary file from S3."""
         try:
             self._s3.delete_object(Bucket=self._bucket, Key=s3_key)
             logger.info("Cleaned up S3: %s/%s", self._bucket, s3_key)
@@ -108,13 +104,12 @@ class DocumentParser:
             logger.warning("S3 cleanup failed: %s", e)
 
     def _ensure_bucket(self) -> bool:
-        """Make sure the S3 bucket exists, create if not."""
         try:
             self._s3.head_bucket(Bucket=self._bucket)
             return True
         except ClientError as e:
-            code = int(e.response["Error"]["Code"])
-            if code == 404:
+            code = e.response["Error"]["Code"]
+            if code == "404" or code == "NoSuchBucket":
                 try:
                     cfg = {}
                     if settings.AWS_REGION != "us-east-1":
@@ -129,9 +124,7 @@ class DocumentParser:
     # ── PDF parsing (pdfplumber) ──────────────────────────────────────
 
     def _parse_pdf(self, file_bytes: bytes) -> Dict:
-        """Extract text and tables from PDF using pdfplumber."""
         import pdfplumber
-
         text_blocks, tables = [], []
         with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
             npages = len(pdf.pages)
@@ -163,19 +156,12 @@ class DocumentParser:
 
     def _parse_image(self, file_bytes: bytes, ext: str) -> Dict:
         """Extract text from image using Tesseract OCR via pytesseract."""
-        from PIL import Image
-        import pytesseract
-
         image = Image.open(io.BytesIO(file_bytes))
 
-        # Run OCR
+        # Run OCR - using direct method calls
         ocr_text = pytesseract.image_to_string(image)
 
-        text_blocks = []
-        for line in ocr_text.split("\n"):
-            line = line.strip()
-            if line:
-                text_blocks.append(line)
+        text_blocks = [line.strip() for line in ocr_text.split("\n") if line.strip()]
 
         # Attempt table detection via pytesseract TSV output
         tables = []
@@ -201,7 +187,6 @@ class DocumentParser:
 
     @staticmethod
     def _tsv_to_tables(tsv_data: Dict) -> List[str]:
-        """Convert pytesseract TSV output into markdown tables if blocks look tabular."""
         blocks = {}
         for i, block_num in enumerate(tsv_data.get("block_num", [])):
             text = tsv_data["text"][i].strip() if tsv_data["text"][i] else ""
@@ -211,23 +196,16 @@ class DocumentParser:
             key = (block_num, line_num)
             blocks.setdefault(key, []).append(text)
 
-        # Group into lines — only create a "table" if we have at least 2 rows
-        # with multiple columns (heuristic: lines with 3+ words each)
-        lines = []
-        for key in sorted(blocks):
-            row = blocks[key]
-            lines.append(row)
+        lines = [blocks[key] for key in sorted(blocks)]
 
         if len(lines) < 2:
             return []
 
-        # Check if it looks tabular (most rows have similar word counts)
         word_counts = [len(row) for row in lines]
         avg_wc = sum(word_counts) / len(word_counts)
         if avg_wc < 2:
             return []
 
-        # Build markdown table
         max_cols = max(len(row) for row in lines)
         md_lines = []
         for i, row in enumerate(lines):
@@ -241,7 +219,6 @@ class DocumentParser:
 
     @staticmethod
     def _list_table_md(table: list) -> str:
-        """Convert a pdfplumber table (list of lists) to markdown."""
         if not table or not table[0]:
             return ""
         cleaned = [[str(c).strip() if c else "" for c in row] for row in table]

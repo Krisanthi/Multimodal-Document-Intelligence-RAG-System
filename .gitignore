@@ -10,3 +10,4 @@ samconfig.toml
 dist/
 build/
 .DS_Store
+.idea/

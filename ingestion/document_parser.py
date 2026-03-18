@@ -9,16 +9,42 @@ Parsing pipeline:
 import io
 import logging
 import os
+import shutil
 from pathlib import Path
 from typing import List, Dict, Optional
 
 import boto3
-import pytesseract  # Moved to top-level import for better visibility
+import pytesseract
 from PIL import Image
 from botocore.exceptions import ClientError
 from config.settings import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _find_tesseract() -> str:
+    """Auto-detect tesseract binary path across macOS, Linux, and Windows."""
+    # 1. Check if user configured a custom path in settings
+    custom = getattr(settings, "TESSERACT_CMD", None)
+    if custom and os.path.isfile(custom):
+        return custom
+
+    # 2. Auto-detect via PATH (works on Streamlit Cloud + any system)
+    found = shutil.which("tesseract")
+    if found:
+        return found
+
+    # 3. Common fallback paths
+    for path in [
+        "/usr/bin/tesseract",           # Linux apt (Streamlit Cloud)
+        "/opt/homebrew/bin/tesseract",   # macOS Homebrew (Apple Silicon)
+        "/usr/local/bin/tesseract",      # macOS Homebrew (Intel)
+    ]:
+        if os.path.isfile(path):
+            return path
+
+    return "tesseract"  # Last resort — hope it's on PATH
+
 
 class DocumentParser:
     """Parses documents using pdfplumber (PDFs) and pytesseract (images).
@@ -28,10 +54,9 @@ class DocumentParser:
     SUPPORTED_DOC_EXTS = {".pdf"} | SUPPORTED_IMAGE_EXTS
 
     def __init__(self):
-        # Configure Tesseract path for macOS Homebrew
-        # We check settings first, otherwise default to your known path
-        tess_path = getattr(settings, "TESSERACT_CMD", "/opt/homebrew/bin/tesseract")
-        pytesseract.pytesseract.tesseract_cmd = tess_path
+        # Auto-detect tesseract path (works on macOS, Linux, Streamlit Cloud)
+        pytesseract.pytesseract.tesseract_cmd = _find_tesseract()
+        logger.info("Tesseract path: %s", pytesseract.pytesseract.tesseract_cmd)
 
         creds = settings.get_aws_credentials()
         try:
